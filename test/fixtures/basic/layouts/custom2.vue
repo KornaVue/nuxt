@@ -6,7 +6,10 @@
     <div class="count">
       {{ count }}
     </div>
-    <button class="add-count" @click="count++">
+    <button
+      class="add-count"
+      @click="count++"
+    >
       add count
     </button>
   </div>
@@ -20,6 +23,6 @@ function logFoo () {
 }
 
 defineExpose({
-  logFoo
+  logFoo,
 })
 </script>

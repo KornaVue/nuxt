@@ -1,30 +1,25 @@
-// We set __webpack_public_path via this import with webpack builder
 import { createApp, createSSRApp, nextTick } from 'vue'
-import { $fetch } from 'ofetch'
-import type { $Fetch, NitroFetchRequest } from 'nitropack'
+import type { App } from 'vue'
 
-// This file must be imported first for webpack as we set __webpack_public_path__ there
+// This file must be imported first as we set globalThis.$fetch via this import
 // @ts-expect-error virtual file
-import { baseURL } from '#build/paths.mjs'
+import '#build/fetch.mjs'
 
-import type { CreateOptions } from '#app'
-import { applyPlugins, createNuxtApp } from '#app/nuxt'
+import { applyPlugins, createNuxtApp } from './nuxt'
+import type { CreateOptions } from './nuxt'
 
+import { createError } from './composables/error'
+
+// @ts-expect-error virtual file
 import '#build/css'
 // @ts-expect-error virtual file
 import plugins from '#build/plugins'
 // @ts-expect-error virtual file
 import RootComponent from '#build/root-component.mjs'
 // @ts-expect-error virtual file
-import { vueAppRootContainer } from '#build/nuxt.config.mjs'
+import { appId, appSpaLoaderAttrs, multiApp, spaLoadingTemplateOutside, vueAppRootContainer } from '#build/nuxt.config.mjs'
 
-if (!globalThis.$fetch) {
-  globalThis.$fetch = $fetch.create({
-    baseURL: baseURL()
-  }) as $Fetch<unknown, NitroFetchRequest>
-}
-
-let entry: Function
+let entry: (ssrContext?: CreateOptions['ssrContext']) => Promise<App<Element>>
 
 if (import.meta.server) {
   entry = async function createNuxtAppServer (ssrContext: CreateOptions['ssrContext']) {
@@ -35,9 +30,9 @@ if (import.meta.server) {
     try {
       await applyPlugins(nuxt, plugins)
       await nuxt.hooks.callHook('app:created', vueApp)
-    } catch (err) {
-      await nuxt.hooks.callHook('app:error', err)
-      nuxt.payload.error = (nuxt.payload.error || err) as any
+    } catch (error) {
+      await nuxt.hooks.callHook('app:error', error)
+      nuxt.payload.error = nuxt.payload.error || createError(error as any)
     }
     if (ssrContext?._renderResponse) { throw new Error('skipping render') }
 
@@ -53,23 +48,41 @@ if (import.meta.client) {
   }
 
   // eslint-disable-next-line
-  let vueAppPromise: Promise<any>
+  let vueAppPromise: Promise<App<Element>>
 
   entry = async function initApp () {
     if (vueAppPromise) { return vueAppPromise }
+
     const isSSR = Boolean(
-      window.__NUXT__?.serverRendered ||
-      document.getElementById('__NUXT_DATA__')?.dataset.ssr === 'true'
+      (multiApp ? window.__NUXT__?.[appId] : window.__NUXT__)?.serverRendered ??
+      (multiApp ? document.querySelector(`[data-nuxt-data="${appId}"]`) as HTMLElement : document.getElementById('__NUXT_DATA__'))?.dataset.ssr === 'true',
     )
     const vueApp = isSSR ? createSSRApp(RootComponent) : createApp(RootComponent)
 
     const nuxt = createNuxtApp({ vueApp })
 
+    async function handleVueError (error: any) {
+      await nuxt.callHook('app:error', error)
+      nuxt.payload.error = nuxt.payload.error || createError(error as any)
+    }
+
+    vueApp.config.errorHandler = handleVueError
+    // If the errorHandler is not overridden by the user, we unset it after the app is hydrated
+    nuxt.hook('app:suspense:resolve', () => {
+      if (vueApp.config.errorHandler === handleVueError) { vueApp.config.errorHandler = undefined }
+    })
+
+    if (spaLoadingTemplateOutside && !isSSR && appSpaLoaderAttrs.id) {
+      // Remove spa loader if present
+      nuxt.hook('app:suspense:resolve', () => {
+        document.getElementById(appSpaLoaderAttrs.id)?.remove()
+      })
+    }
+
     try {
       await applyPlugins(nuxt, plugins)
     } catch (err) {
-      await nuxt.callHook('app:error', err)
-      nuxt.payload.error = (nuxt.payload.error || err) as any
+      handleVueError(err)
     }
 
     try {
@@ -79,8 +92,7 @@ if (import.meta.client) {
       await nuxt.hooks.callHook('app:mounted', vueApp)
       await nextTick()
     } catch (err) {
-      await nuxt.callHook('app:error', err)
-      nuxt.payload.error = (nuxt.payload.error || err) as any
+      handleVueError(err)
     }
 
     return vueApp
@@ -88,7 +100,8 @@ if (import.meta.client) {
 
   vueAppPromise = entry().catch((error: unknown) => {
     console.error('Error while mounting app:', error)
+    throw error
   })
 }
 
-export default (ctx?: CreateOptions['ssrContext']) => entry(ctx)
+export default (ssrContext?: CreateOptions['ssrContext']) => entry(ssrContext)

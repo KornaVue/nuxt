@@ -1,9 +1,8 @@
-import { parseURL } from 'ufo'
-import { defineNuxtPlugin } from '#app/nuxt'
-import { loadPayload } from '#app/composables/payload'
-import { onNuxtReady } from '#app/composables/ready'
-import { useRouter } from '#app/composables/router'
-import { getAppManifest } from '#app/composables/manifest'
+import { defineNuxtPlugin } from '../nuxt'
+import { loadPayload } from '../composables/payload'
+import { onNuxtReady } from '../composables/ready'
+import { useRouter } from '../composables/router'
+import { getAppManifest } from '../composables/manifest'
 // @ts-expect-error virtual file
 import { appManifest as isAppManifestEnabled } from '#build/nuxt.config.mjs'
 
@@ -11,7 +10,7 @@ export default defineNuxtPlugin({
   name: 'nuxt:payload',
   setup (nuxtApp) {
     // TODO: Support dev
-    if (process.dev) { return }
+    if (import.meta.dev) { return }
 
     // Load payload after middleware & once final route is resolved
     useRouter().beforeResolve(async (to, from) => {
@@ -24,7 +23,8 @@ export default defineNuxtPlugin({
     onNuxtReady(() => {
       // Load payload into cache
       nuxtApp.hooks.hook('link:prefetch', async (url) => {
-        if (!parseURL(url).protocol) {
+        const { hostname } = new URL(url, window.location.href)
+        if (hostname === window.location.hostname) {
           await loadPayload(url)
         }
       })
@@ -32,5 +32,5 @@ export default defineNuxtPlugin({
         setTimeout(getAppManifest, 1000)
       }
     })
-  }
+  },
 })

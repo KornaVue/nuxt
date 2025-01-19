@@ -4,7 +4,7 @@ description: useHead customizes the head properties of individual pages of your 
 links:
   - label: Source
     icon: i-simple-icons-github
-    to: https://github.com/unjs/unhead/blob/main/packages/unhead/src/composables/useHead.ts
+    to: https://github.com/unjs/unhead/blob/main/packages/vue/src/composables/useHead.ts
     size: xs
 ---
 
@@ -37,7 +37,7 @@ interface MetaObject {
 
 See [@unhead/schema](https://github.com/unjs/unhead/blob/main/packages/schema/src/schema.ts) for more detailed types.
 
-::callout
+::note
 The properties of `useHead` can be dynamic, accepting `ref`, `computed` and `reactive` properties. `meta` parameter can also accept a function returning an object to make the entire object reactive.
 ::
 

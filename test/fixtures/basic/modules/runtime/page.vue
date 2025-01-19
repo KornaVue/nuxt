@@ -1,12 +1,14 @@
+<!-- eslint-disable vue/multi-word-component-names -->
+
 <script setup lang="ts">
 import { setResponseHeader } from 'h3'
 
 definePageMeta({
-  value: 'added in pages:extend'
+  value: 'added in pages:extend',
 })
 
 if (import.meta.server) {
-  setResponseHeader(useRequestEvent(), 'x-extend', useRoute().meta.value as string)
+  setResponseHeader(useRequestEvent()!, 'x-extend', useRoute().meta.value as string)
 }
 </script>
 
